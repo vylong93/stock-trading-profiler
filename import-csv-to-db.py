@@ -53,6 +53,14 @@ def correct_fields_type(db_file):
 
         cur.executemany('''INSERT INTO stocks (date, account, description, increase, decrease, accumulate, trans, symbol, qty, price, tag)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);''', stock_records)
+        cur.execute('''UPDATE stocks SET tag='deposit' WHERE (stocks.description LIKE '%Chuyen tien vao tai khoan%'
+            OR stocks.description LIKE '%NOP TIEN%') AND stocks.increase > 0;''')
+        cur.execute("UPDATE stocks SET tag='withdraw' WHERE stocks.description LIKE '%Tat toan%' AND stocks.decrease > 0;")
+        cur.execute("UPDATE stocks SET tag='interest' WHERE stocks.description LIKE 'L_i ti_n g_i%' AND stocks.increase > 0;")
+        cur.execute(
+            "UPDATE stocks SET tag='interest-tax' WHERE stocks.description LIKE 'Thu_ l_i ti_n g_i%' AND stocks.decrease > 0;")
+        cur.execute("UPDATE stocks SET tag='other-fee' WHERE stocks.description LIKE 'Thu ph_ %' AND stocks.decrease > 0;")
+        cur.execute("UPDATE stocks SET tag='ignore' WHERE stocks.description LIKE '%CKNB%';")
         cur.close()
 
     except sqlite3.Error as error:
