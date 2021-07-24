@@ -25,12 +25,18 @@ def correct_fields_type(db_file):
         raise RuntimeError('Please provide correct path to db file')
 
     db_conn = sqlite3.connect(db_file)
+    cur = db_conn.cursor()
     print('Opened database successfully')
 
-    db_conn.execute("DROP TABLE IF EXISTS stocks;")
-    db_conn.execute('''CREATE TABLE stocks
-        (account int, date text, description text, increase real, decrease real, accumulate real,
+    cur.execute("DROP TABLE IF EXISTS stocks;")
+    cur.execute('''CREATE TABLE stocks
+        (date text, account int, description text, increase real, decrease real, accumulate real,
         trans text, symbol text, qty real, price real)''')
+
+    for row in cur.execute('SELECT * FROM money_transaction'):
+        print(row)
+
+    db_conn.commit()
 
     print('Fields type correction completed!\n')
     db_conn.close()
