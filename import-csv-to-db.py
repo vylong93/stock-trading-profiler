@@ -7,6 +7,7 @@ import sqlite3
 import csv
 import pandas as pd
 from datetime import datetime
+import re
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -33,7 +34,7 @@ def correct_fields_type(db_file):
         cur.execute('DROP TABLE IF EXISTS stocks;')
         cur.execute('''CREATE TABLE stocks
             (date text, account int, description text, increase real, decrease real, accumulate real,
-            trans text, symbol text, qty real, price real, tag text)''')
+            trans text, symbol text, qty int, price int, tag text)''')
 
         cur.execute('SELECT * FROM money_transaction')
         records = cur.fetchall()
@@ -46,11 +47,44 @@ def correct_fields_type(db_file):
             increase = int(record[3].replace(',', ''))
             decrease = int(record[4].replace(',', ''))
             accumulate = int(record[5].replace(',', ''))
-            stock_record = (date.strftime('%Y-%m-%d'), account, description, increase, decrease, accumulate)
+
+            trans = None
+            symbol = None
+            qty = None
+            price = None
+            tag = None
+
+            buy_regex = "^Mua (.{3}) (\\d*\\.?\\d*) x (\\d*\\.?\\d*)( .+ )(\\d{2}\\/\\d{2}\\/\\d{4})( : COMMISSION-STOCK$)?"
+            buy = re.split(buy_regex, description)
+
+            if len(buy) > 1:
+                if buy[6] is not None and buy[6].endswith('COMMISSION-STOCK'):
+                    tag = 'fee'
+                else:
+                    trans = 'BUY'
+                    symbol = buy[1]
+                    qty = int(buy[2].replace('.', ''))
+                    price = int(buy[3].replace('.', ''))
+            else:
+                sell_regex = "^B.n (.{3}) (\\d*\\.?\\d*) x (\\d*\\.?\\d*)( .+ )(\\d{2}\\/\\d{2}\\/\\d{4})( : COMMISSION-STOCK$)?( : PIT-SELL_STOCK$)?"
+                sell = re.split(sell_regex, description)
+                if len(sell) > 1:
+                    if sell[6] is not None and sell[6].endswith('COMMISSION-STOCK'):
+                        tag = 'fee'
+                    elif sell[7] is not None and sell[7].endswith('PIT-SELL_STOCK'):
+                        tag = 'tax'
+                    else:
+                        trans = 'SELL'
+                        symbol = sell[1]
+                        qty = int(sell[2].replace('.', ''))
+                        price = int(sell[3].replace('.', ''))
+
+            stock_record = (date.strftime('%Y-%m-%d'), account, description, increase,
+                            decrease, accumulate, trans, symbol, qty, price, tag)
             stock_records.append(stock_record)
 
-        cur.executemany('''INSERT INTO stocks (date, account, description, increase, decrease, accumulate)
-            VALUES (?, ?, ?, ?, ?, ?);''', stock_records)
+        cur.executemany('''INSERT INTO stocks (date, account, description, increase, decrease, accumulate, trans, symbol, qty, price, tag)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);''', stock_records)
         cur.close()
 
     except sqlite3.Error as error:
