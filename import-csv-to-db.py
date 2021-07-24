@@ -14,7 +14,7 @@ def import_csv_into_db(csv_file, db_file):
         raise RuntimeError('Please provide correct path to csv file')
 
     db_conn = sqlite3.connect(db_file)
-    data = pd.read_csv(csv_file)
+    data = pd.read_csv(csv_file)  # thousands=','
     data.to_sql('money_transaction', db_conn, if_exists='append', index=False)
 
     print('File [', csv_file, '] is imported into[', db_file, ']!\n')
@@ -33,7 +33,7 @@ def correct_fields_type(db_file):
         cur.execute('DROP TABLE IF EXISTS stocks;')
         cur.execute('''CREATE TABLE stocks
             (date text, account int, description text, increase real, decrease real, accumulate real,
-            trans text, symbol text, qty real, price real)''')
+            trans text, symbol text, qty real, price real, tag text)''')
 
         cur.execute('SELECT * FROM money_transaction')
         records = cur.fetchall()
@@ -41,12 +41,16 @@ def correct_fields_type(db_file):
         stock_records = []
         for record in records:
             account = record[0]
-            description = record[2]
             date = datetime.strptime(record[1], '%d/%m/%Y')
-            stock_record = (date.strftime('%Y-%m-%d'), account, description)
+            description = record[2]
+            increase = int(record[3].replace(',', ''))
+            decrease = int(record[4].replace(',', ''))
+            accumulate = int(record[5].replace(',', ''))
+            stock_record = (date.strftime('%Y-%m-%d'), account, description, increase, decrease, accumulate)
             stock_records.append(stock_record)
 
-        cur.executemany('INSERT INTO stocks (date, account, description) VALUES (?, ?, ?);', stock_records)
+        cur.executemany('''INSERT INTO stocks (date, account, description, increase, decrease, accumulate)
+            VALUES (?, ?, ?, ?, ?, ?);''', stock_records)
         cur.close()
 
     except sqlite3.Error as error:
