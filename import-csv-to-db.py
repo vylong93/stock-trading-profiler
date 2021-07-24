@@ -20,6 +20,22 @@ def import_csv_into_db(csv_file, db_file):
     db_conn.close()
 
 
+def correct_fields_type(db_file):
+    if not os.path.exists(db_file):
+        raise RuntimeError('Please provide correct path to db file')
+
+    db_conn = sqlite3.connect(db_file)
+    print('Opened database successfully')
+
+    db_conn.execute("DROP TABLE IF EXISTS stocks;")
+    db_conn.execute('''CREATE TABLE stocks
+        (account int, date text, description text, increase real, decrease real, accumulate real,
+        trans text, symbol text, qty real, price real)''')
+
+    print('Fields type correction completed!\n')
+    db_conn.close()
+
+
 def main():
     __version__ = "1.0"
 
@@ -27,11 +43,14 @@ def main():
     parser.add_argument('-v', '--version', action='version', version='%(prog)s v{}'.format(__version__))
     parser.add_argument('-f', '--file', help='csv file input')
     parser.add_argument('-db', '--database_file', help='SQLite3 database file')
+    parser.add_argument('-ct', '--correct_type', action='store_true', help='Correct fields type in database')
 
     args = parser.parse_args()
 
     if args.file and args.database_file:
         import_csv_into_db(args.file, args.database_file)
+    elif args.correct_type:
+        correct_fields_type(args.database_file)
     else:
         raise RuntimeError('Provide csv and/or db files path')
 
