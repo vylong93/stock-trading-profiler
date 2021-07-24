@@ -2,10 +2,22 @@
 
 import argparse
 from argparse import ArgumentParser
+import os
+import sqlite3
+import csv
+import pandas as pd
 
 
 def import_csv_into_db(csv_file, db_file):
-    print('TODO: import', csv_file, 'into', db_file)
+    if not os.path.exists(csv_file):
+        raise RuntimeError('Please provide correct path to csv file')
+
+    db_conn = sqlite3.connect(db_file)
+    data = pd.read_csv(csv_file)
+    data.to_sql('money-transaction', db_conn, if_exists='append', index=False)
+
+    print('File [', csv_file, '] is imported into[', db_file, ']!\n')
+    db_conn.close()
 
 
 def main():
