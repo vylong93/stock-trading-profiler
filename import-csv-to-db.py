@@ -6,6 +6,7 @@ import os
 import sqlite3
 import csv
 import pandas as pd
+from datetime import datetime
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -24,22 +25,39 @@ def correct_fields_type(db_file):
     if not os.path.exists(db_file):
         raise RuntimeError('Please provide correct path to db file')
 
-    db_conn = sqlite3.connect(db_file)
-    cur = db_conn.cursor()
-    print('Opened database successfully')
+    try:
+        db_conn = sqlite3.connect(db_file)
+        cur = db_conn.cursor()
+        print('Database is opened!')
 
-    cur.execute("DROP TABLE IF EXISTS stocks;")
-    cur.execute('''CREATE TABLE stocks
-        (date text, account int, description text, increase real, decrease real, accumulate real,
-        trans text, symbol text, qty real, price real)''')
+        cur.execute('DROP TABLE IF EXISTS stocks;')
+        cur.execute('''CREATE TABLE stocks
+            (date text, account int, description text, increase real, decrease real, accumulate real,
+            trans text, symbol text, qty real, price real)''')
 
-    for row in cur.execute('SELECT * FROM money_transaction'):
-        print(row)
+        cur.execute('SELECT * FROM money_transaction')
+        records = cur.fetchall()
 
-    db_conn.commit()
+        stock_records = []
+        for record in records:
+            account = record[0]
+            description = record[2]
+            date = datetime.strptime(record[1], '%d/%m/%Y')
+            stock_record = (date.strftime('%Y-%m-%d'), account, description)
+            stock_records.append(stock_record)
+
+        cur.executemany('INSERT INTO stocks (date, account, description) VALUES (?, ?, ?);', stock_records)
+        cur.close()
+
+    except sqlite3.Error as error:
+        print('Failed to read data from table', error)
+    finally:
+        if db_conn:
+            db_conn.commit()
+            db_conn.close()
+            print('Database is closed!')
 
     print('Fields type correction completed!\n')
-    db_conn.close()
 
 
 def main():
