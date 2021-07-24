@@ -3,15 +3,18 @@
 import argparse
 from argparse import ArgumentParser
 
+
 def convert_xls_to_csv(files):
     for file in files:
         print('TODO: convert', file, 'to csv format')
+
 
 class ExtendAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
         items = getattr(namespace, self.dest) or []
         items.extend(values)
         setattr(namespace, self.dest, items)
+
 
 def main():
     __version__ = "1.0"
@@ -32,6 +35,7 @@ def main():
         convert_xls_to_csv(args.files)
     else:
         raise RuntimeError('Provide xls files path')
+
 
 if __name__ == "__main__":
     main()

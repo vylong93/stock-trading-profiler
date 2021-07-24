@@ -61,7 +61,7 @@ def correct_fields_type(db_file):
 
 
 def main():
-    __version__ = "1.0"
+    __version__ = '1.0'
 
     parser = ArgumentParser(description='Tool for import csv file into SQLite3 database file')
     parser.add_argument('-v', '--version', action='version', version='%(prog)s v{}'.format(__version__))
@@ -78,5 +78,6 @@ def main():
     else:
         raise RuntimeError('Provide csv and/or db files path')
 
-if __name__ == "__main__":
+
+if __name__ == '__main__':
     main()
