@@ -21,7 +21,8 @@ convert-xls-to-csv.py -f file01.xls file02.xls
 Import one csv file into database file. If the db file not available, a new output file will be created.
 
 ```bash
-import-csv-to-db -f file.csv -o data.db
+import-csv-to-db.py -f file.csv -o data.db
+import-csv-to-db.py -db data.db -ct
 ````
 
 ## Contributing
