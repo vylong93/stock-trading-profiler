@@ -14,7 +14,7 @@ def import_csv_into_db(csv_file, db_file):
 
     db_conn = sqlite3.connect(db_file)
     data = pd.read_csv(csv_file)
-    data.to_sql('money-transaction', db_conn, if_exists='append', index=False)
+    data.to_sql('money_transaction', db_conn, if_exists='append', index=False)
 
     print('File [', csv_file, '] is imported into[', db_file, ']!\n')
     db_conn.close()
@@ -29,11 +29,6 @@ def main():
     parser.add_argument('-db', '--database_file', help='SQLite3 database file')
 
     args = parser.parse_args()
-
-    methods = [x for x in (args.file, args.database_file) if x is not None]
-
-    if len(methods) != 2:
-        raise RuntimeError('Specify exactly csv file and db file\n')
 
     if args.file and args.database_file:
         import_csv_into_db(args.file, args.database_file)
