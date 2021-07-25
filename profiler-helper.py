@@ -12,6 +12,10 @@ import os
 import hashlib
 from Crypto.Cipher import AES
 from Crypto import Random
+from Crypto.PublicKey import ECC
+from tinyec import registry
+from tinyec import ec
+import secrets
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -149,8 +153,30 @@ def aes_256_gcm_encrypt(plain_block, secret):
     return auth_tag + cipher_text + iv
 
 
-def decrypt_db(cipher_db_file, pri_key):
-    if not os.path.exists(cipher_db_file) or not os.path.exists(pri_key):
+def ecc_aes_encrypt(plain_block, pub_key):
+    with open(pub_key, 'r') as f:
+        ecc_pub_key = ECC.import_key(f.read())
+
+    curve = registry.get_curve('secp256r1')
+    pub_key = ec.Point(curve, int(str(ecc_pub_key.pointQ.x)), int(str(ecc_pub_key.pointQ.y)))
+    session_priv_key = secrets.randbelow(curve.field.n)
+    shared_secret_point = session_priv_key * pub_key
+
+    shasum = hashlib.sha256(int.to_bytes(shared_secret_point.x, 32, 'big'))
+    shasum.update(int.to_bytes(shared_secret_point.y, 32, 'big'))
+    shared_secret = shasum.digest()
+    cipher_block = aes_256_gcm_encrypt(plain_block, shared_secret)
+
+    session_pub_key = session_priv_key * curve.g
+    ecc_session_pub_key = ECC.construct(curve='secp256r1', point_x=session_pub_key.x, point_y=session_pub_key.y)
+    der = ecc_session_pub_key.export_key(format='DER')
+    der_len = len(der).to_bytes(2, byteorder='big')
+
+    return der_len + der + cipher_block
+
+
+def decrypt_db(cipher_db_file, priv_key):
+    if not os.path.exists(cipher_db_file) or not os.path.exists(priv_key):
         raise RuntimeError('Please provide correct path to cipher db and/or private key')
 
 
@@ -170,6 +196,30 @@ def aes_256_gcm_decrypt(cipher_block, secret):
     return aes_gcm.decrypt_and_verify(cipher_text, auth_tag)
 
 
+def ecc_aes_decrypt(cipher_block, priv_key):
+    # cipher_block = ecc_aes_encrypt(data, '../Profiler/pubKey.pem')
+    der_len_size = 2
+    der_len = int.from_bytes(cipher_block[:der_len_size], byteorder='big')
+    der = cipher_block[der_len_size:(der_len + der_len_size)]
+    cipher = cipher_block[(der_len_size + der_len):]
+
+    ecc_ciphertext_pub_key = ECC.import_key(der)
+    curve = registry.get_curve('secp256r1')
+    ciphertext_pub_key = ec.Point(curve, int(str(ecc_ciphertext_pub_key.pointQ.x)),
+                                  int(str(ecc_ciphertext_pub_key.pointQ.y)))
+
+    with open('../Profiler/privKey.pem', 'r') as f:
+        ecc_priv_key = ECC.import_key(f.read())
+    priv_key = int(str(ecc_priv_key.d))
+    shared_secret_point = priv_key * ciphertext_pub_key
+
+    shasum = hashlib.sha256(int.to_bytes(shared_secret_point.x, 32, 'big'))
+    shasum.update(int.to_bytes(shared_secret_point.y, 32, 'big'))
+    shared_secret = shasum.digest()
+
+    return aes_256_gcm_decrypt(cipher, shared_secret)
+
+
 def main():
     __version__ = '1.0'
 
@@ -180,9 +230,8 @@ def main():
     parser.add_argument('-db', '--database_file', help='sqlite3 database file')
     parser.add_argument('-ct', '--correct_type', action='store_true', help='correct fields type in database')
     parser.add_argument('-enc', '--encrypt_database', action='store_true', help='encrypt plaintext database file')
-    parser.add_argument('-pubkey', '--public_Key', help='public key (PEM format) for encryption')
     parser.add_argument('-dec', '--decrypt_database', action='store_true', help='decrypt cipher database file')
-    parser.add_argument('-prikey', '--private_Key', help='private key (PEM format) for decryption')
+    parser.add_argument('-k', '--key', help='public key or private key in PEM or DER format')
 
     args = parser.parse_args()
 
@@ -192,11 +241,11 @@ def main():
     elif args.correct_type and args.database_file:
         correct_fields_type(args.database_file)
 
-    elif args.encrypt_database and args.database_file and args.public_Key:
-        encrypt_db(args.database_file, args.public_Key)
+    elif args.encrypt_database and args.database_file and args.key:
+        encrypt_db(args.database_file, args.key)
 
-    elif args.decrypt_database and args.database_file and args.private_Key:
-        decrypt_db(args.database_file, args.private_Key)
+    elif args.decrypt_database and args.database_file and args.key:
+        decrypt_db(args.database_file, args.key)
 
     else:
         parser.print_help()

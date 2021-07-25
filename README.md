@@ -33,12 +33,12 @@ profiler-helper.py -ct -db data.db
 
 To encrypt the database file with a public key:
 ```bash
-profiler-helper.py -enc -db data.db -pubkey pubkey.pem
+profiler-helper.py -enc -db data.db -k pubKey.pem
 ```
 
 To decrypt the database file with a private key:
 ```bash
-profiler-helper.py -dec -db cipher.db -prikey prikey.pem
+profiler-helper.py -dec -db cipher.db -k privKey.pem
 ```
 
 ## Contributing
