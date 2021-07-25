@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
-import argparse
 from argparse import ArgumentParser
-import os
-import sqlite3
-import csv
-import pandas as pd
-from datetime import datetime
-import re
-import os
-import hashlib
-from Crypto.Cipher import AES
 from Crypto import Random
+from Crypto.Cipher import AES
 from Crypto.PublicKey import ECC
-from tinyec import registry
+from datetime import datetime
 from tinyec import ec
+from tinyec import registry
+import argparse
+import csv
+import hashlib
+import os
+import os
+import pandas as pd
+import re
 import secrets
+import sqlite3
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -197,7 +197,6 @@ def aes_256_gcm_decrypt(cipher_block, secret):
 
 
 def ecc_aes_decrypt(cipher_block, priv_key):
-    # cipher_block = ecc_aes_encrypt(data, '../Profiler/pubKey.pem')
     der_len_size = 2
     der_len = int.from_bytes(cipher_block[:der_len_size], byteorder='big')
     der = cipher_block[der_len_size:(der_len + der_len_size)]
