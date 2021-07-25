@@ -8,6 +8,7 @@ from datetime import datetime
 from tinyec import ec
 from tinyec import registry
 import argparse
+import calendar
 import csv
 import hashlib
 import os
@@ -16,6 +17,10 @@ import pandas as pd
 import re
 import secrets
 import sqlite3
+import time
+
+
+BLOCK_SIZE = 4096
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -134,6 +139,53 @@ def buy_sell_description_parser(description):
 def encrypt_db(db_file, pub_key):
     if not os.path.exists(db_file) or not os.path.exists(pub_key):
         raise RuntimeError('Please provide correct path to db and/or public key')
+
+    metadata, cipher_padding, checksum = construct_db_metadata(db_file)
+    shasum = hashlib.sha256()
+
+    current_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
+    output_path = db_file + '.' + current_time + '.ldang.encrypted'
+    out_file = open(output_path, 'wb')
+
+    with open(db_file, 'rb') as f:
+        for block in iter(lambda: f.read(BLOCK_SIZE), b''):
+            shasum.update(block)
+            if len(block) < BLOCK_SIZE:
+                block = block + cipher_padding
+            cipher_block = ecc_aes_encrypt(block, pub_key)
+            cipher_length = len(cipher_block).to_bytes(2, byteorder='big')
+            out_file.write(cipher_length)
+            out_file.write(cipher_block)
+
+    if checksum.decode("utf-8") == shasum.hexdigest():
+        print('Encrypted database located at:', output_path)
+    else:
+        print('Failed to encrypt database! Checksum is not matched', checksum.decode("utf-8"), shasum.hexdigest())
+
+    out_file.close()
+
+
+def construct_db_metadata(db_file):
+    # TODO: optimize by open file one time only. Update sha256sum and padding length at the end
+    with open(db_file, 'rb') as f:
+        db_bytes = f.read()
+
+    padding = len(db_bytes) % BLOCK_SIZE
+    padding_byte = padding.to_bytes(2, byteorder='big')
+    cipher_padding = os.urandom(padding)
+    print('cipher_padding: ', len(cipher_padding))
+
+    epoch = calendar.timegm(time.gmtime())
+    epoch_bytes = str(epoch).encode('utf-8')
+
+    shasum = hashlib.sha256()
+    shasum.update(db_bytes)
+    digest_bytes = bytes(shasum.hexdigest(), 'utf-8')
+
+    metadata_padding = os.urandom(BLOCK_SIZE - len(epoch_bytes) - len(padding_byte) - len(digest_bytes))
+
+    # fixed size 256: | 2 byte padding length | 10 bytes epoch time | 64 bytes db checksum | 180 bytes padding |
+    return (padding_byte + epoch_bytes + digest_bytes + metadata_padding, cipher_padding, digest_bytes)
 
 
 def aes_256_cbc_encrypt(plain_block, secret):
