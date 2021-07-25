@@ -21,9 +21,13 @@ convert-xls-to-csv.py -f file01.xls file02.xls
 Import one csv file into database file. If the db file not available, a new output file will be created.
 
 ```bash
-import-csv-to-db.py -f file.csv -o data.db
-import-csv-to-db.py -db data.db -ct
+profiler-helper.py -f file.csv -db data.db
 ````
+
+Create new table with correct fields type and extract more handle fields for future use
+```bash
+profiler-helper.py -db data.db -ct
+```
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
