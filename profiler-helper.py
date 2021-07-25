@@ -132,7 +132,7 @@ def encrypt_db(db_file, pub_key):
         raise RuntimeError('Please provide correct path to db and/or public key')
 
 
-def aes_encrypt(plain_block, secret):
+def aes_256_cbc_encrypt(plain_block, secret):
     secret_key = hashlib.sha256(secret).digest()
     if len(plain_block) % AES.block_size != 0:
         raise RuntimeError('input len', len(plain_block), 'must align with AES.block_size: ', AES.block_size)
@@ -141,16 +141,33 @@ def aes_encrypt(plain_block, secret):
     return iv + cipher.encrypt(plain_block)
 
 
+def aes_256_gcm_encrypt(plain_block, secret):
+    secret_key = hashlib.sha256(secret).digest()
+    aes_gcm = AES.new(secret_key, AES.MODE_GCM)
+    cipher_text, auth_tag = aes_gcm.encrypt_and_digest(plain_block)
+    iv = aes_gcm.nonce
+    return auth_tag + cipher_text + iv
+
+
 def decrypt_db(cipher_db_file, pri_key):
     if not os.path.exists(cipher_db_file) or not os.path.exists(pri_key):
         raise RuntimeError('Please provide correct path to cipher db and/or private key')
 
 
-def aes_decrypt(cipher_block, secret):
+def aes_256_cbc_decrypt(cipher_block, secret):
     secret_key = hashlib.sha256(secret).digest()
-    iv = cipher_block[:16]
+    iv = cipher_block[:AES.block_size]
     cipher = AES.new(secret_key, AES.MODE_CBC, iv)
-    return cipher.decrypt(cipher_block[16:])
+    return cipher.decrypt(cipher_block[AES.block_size:])
+
+
+def aes_256_gcm_decrypt(cipher_block, secret):
+    auth_tag = cipher_block[:AES.block_size]
+    cipher_text = cipher_block[AES.block_size:-AES.block_size]
+    nonce = cipher_block[-AES.block_size:]
+    secret_key = hashlib.sha256(secret).digest()
+    aes_gcm = AES.new(secret_key,  AES.MODE_GCM, nonce)
+    return aes_gcm.decrypt_and_verify(cipher_text, auth_tag)
 
 
 def main():
