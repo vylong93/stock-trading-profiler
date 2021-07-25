@@ -8,6 +8,10 @@ import csv
 import pandas as pd
 from datetime import datetime
 import re
+import os
+import hashlib
+from Crypto.Cipher import AES
+from Crypto import Random
 
 
 def import_csv_into_db(csv_file, db_file):
@@ -124,11 +128,29 @@ def buy_sell_description_parser(description):
 
 
 def encrypt_db(db_file, pub_key):
-    pass
+    if not os.path.exists(db_file) or not os.path.exists(pub_key):
+        raise RuntimeError('Please provide correct path to db and/or public key')
 
 
-def decrypt_db(db_file, pri_key):
-    pass
+def aes_encrypt(plain_block, secret):
+    secret_key = hashlib.sha256(secret).digest()
+    if len(plain_block) % AES.block_size != 0:
+        raise RuntimeError('input len', len(plain_block), 'must align with AES.block_size: ', AES.block_size)
+    iv = Random.new().read(AES.block_size)
+    cipher = AES.new(secret_key, AES.MODE_CBC, iv)
+    return iv + cipher.encrypt(plain_block)
+
+
+def decrypt_db(cipher_db_file, pri_key):
+    if not os.path.exists(cipher_db_file) or not os.path.exists(pri_key):
+        raise RuntimeError('Please provide correct path to cipher db and/or private key')
+
+
+def aes_decrypt(cipher_block, secret):
+    secret_key = hashlib.sha256(secret).digest()
+    iv = cipher_block[:16]
+    cipher = AES.new(secret_key, AES.MODE_CBC, iv)
+    return cipher.decrypt(cipher_block[16:])
 
 
 def main():
@@ -153,11 +175,11 @@ def main():
     elif args.correct_type and args.database_file:
         correct_fields_type(args.database_file)
 
-    elif args.encrypt_database and args.public_Key:
-        encrypt_db(args.encrypt_database, args.public_Key)
+    elif args.encrypt_database and args.database_file and args.public_Key:
+        encrypt_db(args.database_file, args.public_Key)
 
-    elif args.decrypt_database and args.private_Key:
-        decrypt_db(args.decrypt_database, args.private_Key)
+    elif args.decrypt_database and args.database_file and args.private_Key:
+        decrypt_db(args.database_file, args.private_Key)
 
     else:
         parser.print_help()
