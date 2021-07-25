@@ -123,22 +123,42 @@ def buy_sell_description_parser(description):
     return [trans, symbol, qty, price, tag]
 
 
+def encrypt_db(db_file, pub_key):
+    pass
+
+
+def decrypt_db(db_file, pri_key):
+    pass
+
+
 def main():
     __version__ = '1.0'
 
     parser = ArgumentParser(description='Helper tool for Stock Trading Profiler project')
     parser.add_argument('-v', '--version', action='version', version='%(prog)s v{}'.format(__version__))
-    parser.add_argument('-a', '--append', action='store_true', help='Import csv file into db file')
+    parser.add_argument('-a', '--append', action='store_true', help='import csv file into db file')
     parser.add_argument('-f', '--file', help='csv file input')
-    parser.add_argument('-db', '--database_file', help='SQLite3 database file')
-    parser.add_argument('-ct', '--correct_type', action='store_true', help='Correct fields type in database')
+    parser.add_argument('-db', '--database_file', help='sqlite3 database file')
+    parser.add_argument('-ct', '--correct_type', action='store_true', help='correct fields type in database')
+    parser.add_argument('-enc', '--encrypt_database', action='store_true', help='encrypt plaintext database file')
+    parser.add_argument('-pubkey', '--public_Key', help='public key (PEM format) for encryption')
+    parser.add_argument('-dec', '--decrypt_database', action='store_true', help='decrypt cipher database file')
+    parser.add_argument('-prikey', '--private_Key', help='private key (PEM format) for decryption')
 
     args = parser.parse_args()
 
     if args.append and args.file and args.database_file:
         import_csv_into_db(args.file, args.database_file)
+
     elif args.correct_type and args.database_file:
         correct_fields_type(args.database_file)
+
+    elif args.encrypt_database and args.public_Key:
+        encrypt_db(args.encrypt_database, args.public_Key)
+
+    elif args.decrypt_database and args.private_Key:
+        decrypt_db(args.decrypt_database, args.private_Key)
+
     else:
         parser.print_help()
 

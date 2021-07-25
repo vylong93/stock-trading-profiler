@@ -29,6 +29,18 @@ Create new table with correct fields type and extract more handle fields for fut
 profiler-helper.py -ct -db data.db
 ```
 
+## Database encryption and decryption
+
+To encrypt the database file with a public key:
+```bash
+profiler-helper.py -enc -db data.db -pubkey pubkey.pem
+```
+
+To decrypt the database file with a private key:
+```bash
+profiler-helper.py -dec -db cipher.db -prikey prikey.pem
+```
+
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
