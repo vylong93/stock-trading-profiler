@@ -338,7 +338,7 @@ def ecc_aes_decrypt(cipher_block, priv_key):
     ciphertext_pub_key = ec.Point(curve, int(str(ecc_ciphertext_pub_key.pointQ.x)),
                                   int(str(ecc_ciphertext_pub_key.pointQ.y)))
 
-    with open('../Profiler/privKey.pem', 'r') as f:
+    with open(priv_key, 'r') as f:
         ecc_priv_key = ECC.import_key(f.read())
     priv_key = int(str(ecc_priv_key.d))
     shared_secret_point = priv_key * ciphertext_pub_key
