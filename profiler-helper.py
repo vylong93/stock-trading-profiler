@@ -5,6 +5,7 @@ from Crypto import Random
 from Crypto.Cipher import AES
 from Crypto.PublicKey import ECC
 from datetime import datetime
+from pathlib import Path
 from tinyec import ec
 from tinyec import registry
 import argparse
@@ -17,6 +18,7 @@ import pandas as pd
 import re
 import secrets
 import sqlite3
+import struct
 import time
 
 
@@ -145,7 +147,16 @@ def encrypt_db(db_file, pub_key):
 
     current_time = time.strftime("%Y%m%d%H%M%S", time.localtime())
     output_path = db_file + '.' + current_time + '.ldang.encrypted'
+    if os.path.exists(output_path):
+        raise RuntimeError('File', output_path,  'existed! Please avoid overriding.')
     out_file = open(output_path, 'wb')
+
+    cipher_block = ecc_aes_encrypt(metadata, pub_key)
+    cipher_length = len(cipher_block).to_bytes(2, byteorder='big')
+    target_cipher_length = len(cipher_block)
+    print('target_cipher_length:', target_cipher_length)
+    out_file.write(cipher_length)
+    out_file.write(cipher_block)
 
     with open(db_file, 'rb') as f:
         for block in iter(lambda: f.read(BLOCK_SIZE), b''):
@@ -154,6 +165,7 @@ def encrypt_db(db_file, pub_key):
                 block = block + cipher_padding
             cipher_block = ecc_aes_encrypt(block, pub_key)
             cipher_length = len(cipher_block).to_bytes(2, byteorder='big')
+            assert len(cipher_block) == target_cipher_length
             out_file.write(cipher_length)
             out_file.write(cipher_block)
 
@@ -173,7 +185,7 @@ def construct_db_metadata(db_file):
     padding = len(db_bytes) % BLOCK_SIZE
     padding_byte = padding.to_bytes(2, byteorder='big')
     cipher_padding = os.urandom(padding)
-    print('cipher_padding: ', len(cipher_padding))
+    print('cipher_padding:', len(cipher_padding))
 
     epoch = calendar.timegm(time.gmtime())
     epoch_bytes = str(epoch).encode('utf-8')
@@ -184,7 +196,7 @@ def construct_db_metadata(db_file):
 
     metadata_padding = os.urandom(BLOCK_SIZE - len(epoch_bytes) - len(padding_byte) - len(digest_bytes))
 
-    # fixed size 256: | 2 byte padding length | 10 bytes epoch time | 64 bytes db checksum | 180 bytes padding |
+    # BLOCK_SIZE: | 2 byte padding length | 10 bytes epoch time | 64 bytes db checksum | xxx bytes padding |
     return (padding_byte + epoch_bytes + digest_bytes + metadata_padding, cipher_padding, digest_bytes)
 
 
@@ -230,6 +242,73 @@ def ecc_aes_encrypt(plain_block, pub_key):
 def decrypt_db(cipher_db_file, priv_key):
     if not os.path.exists(cipher_db_file) or not os.path.exists(priv_key):
         raise RuntimeError('Please provide correct path to cipher db and/or private key')
+
+    with open(cipher_db_file, 'rb') as f:
+        target_cipher_length = f.read(2)
+
+    target_cipher_length = int.from_bytes(target_cipher_length, byteorder='big')
+    if target_cipher_length == 0:
+        raise RuntimeError('Invalid encrypted database format')
+    print('target_cipher_length:', target_cipher_length)
+
+    db_path = Path(cipher_db_file).with_suffix('.db')
+    if os.path.exists(db_path):
+        raise RuntimeError('File', db_path,  'existed! Please avoid overriding.')
+    db_file = open(db_path, 'wb')
+
+    metadata_block = None
+    struct_format = '2s' + str(target_cipher_length) + 's'
+    struct_len = struct.calcsize(struct_format)
+    struct_unpack = struct.Struct(struct_format).unpack_from
+
+    with open(cipher_db_file, 'rb') as f:
+        while True:
+            data = f.read(struct_len)
+            if not data:
+                break
+            cipher_block = struct_unpack(data)
+            plain_block = ecc_aes_decrypt(cipher_block[1], priv_key)
+
+            if metadata_block is not None:
+                db_file.write(plain_block)
+            else:
+                metadata_block = plain_block
+    db_file.close()
+
+    padding, epoch, checksum = parse_metadata(metadata_block)
+    if padding > 0:
+        f = open(db_path, 'a')
+        f.seek(0, os.SEEK_END)
+        size = f.tell()
+        f.seek(size - padding, os.SEEK_SET)
+        print('truncating', str(padding), 'bytes')
+        f.truncate()
+        f.close()
+
+    print('Database time [' + str(epoch) + ']: ' + time.strftime("%a, %d %b %Y %H:%M:%S +0000", time.localtime(epoch)))
+
+    # TODO: calc hash during decryption, avoid open file twice
+    shasum = hashlib.sha256()
+    with open(db_path, 'rb') as f:
+        for block in iter(lambda: f.read(4096), b""):
+            shasum.update(block)
+
+    if checksum.decode("utf-8") == shasum.hexdigest():
+        print('Decrypted database located at:', db_path)
+    else:
+        print('Failed to decrypt database! Checksum is not matched', checksum.decode("utf-8"), shasum.hexdigest())
+
+
+def parse_metadata(metadata_block):
+    struct_format = '2s10s64s'
+    struct_len = struct.calcsize(struct_format)
+    struct_unpack = struct.Struct(struct_format).unpack_from
+
+    padding_bytes, epoch_bytes, checksum = struct_unpack(metadata_block[:struct_len])
+    padding = int.from_bytes(padding_bytes, byteorder='big')
+    epoch = int(epoch_bytes.decode("utf-8"))
+
+    return (padding, epoch, checksum)
 
 
 def aes_256_cbc_decrypt(cipher_block, secret):
