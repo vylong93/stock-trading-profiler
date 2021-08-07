@@ -83,6 +83,8 @@ def correct_fields_type(db_file):
             "UPDATE stocks SET tag='margin' WHERE stocks.description LIKE 'Gi_i ng_n GDKQ %' OR stocks.description LIKE 'Thu n_ GDKQ %';")
         cur.execute("UPDATE stocks SET tag='margin-interest' WHERE stocks.description LIKE 'L_i vay GDKQ %' AND stocks.decrease > 0;")
 
+        cur.execute("UPDATE stocks SET tag='tax' WHERE stocks.description LIKE 'Thu thue Ctuc CP %' AND stocks.decrease > 0;")
+
         cur.execute("UPDATE stocks SET tag='ignore' WHERE stocks.description LIKE '%CKNB%';")
         cur.close()
 
@@ -100,6 +102,8 @@ def correct_fields_type(db_file):
 def buy_sell_description_parser(description):
     buy_regex = "^Mua (.{3}) (\\d*\\.?\\d*) x (\\d*\\.?\\d*)( .+ )(\\d{2}\\/\\d{2}\\/\\d{4})( : COMMISSION-STOCK$)?"
     sell_regex = "^B.n (.{3}) (\\d*\\.?\\d*) x (\\d*\\.?\\d*)( .+ )(\\d{2}\\/\\d{2}\\/\\d{4})( : COMMISSION-STOCK$)?( : PIT-SELL_STOCK$)?"
+    fee_regex = re.compile('.*Ph. Giao d.ch c. phi.u, CCQ, ETF ..i tr.$')
+    tax_regex = re.compile('.*Thu. TNCN tr.n giao d.ch b.n c. phi.u$')
 
     trans = None
     symbol = None
@@ -109,7 +113,7 @@ def buy_sell_description_parser(description):
 
     buy = re.split(buy_regex, description)
     if len(buy) > 1:
-        if buy[6] is not None and buy[6].endswith('COMMISSION-STOCK'):
+        if (buy[6] is not None and buy[6].endswith('COMMISSION-STOCK')) or (buy[7] is not None and bool(fee_regex.match(buy[7]))):
             tag = 'fee'
         else:
             trans = 'BUY'
@@ -122,9 +126,9 @@ def buy_sell_description_parser(description):
 
     sell = re.split(sell_regex, description)
     if len(sell) > 1:
-        if sell[6] is not None and sell[6].endswith('COMMISSION-STOCK'):
+        if (sell[6] is not None and sell[6].endswith('COMMISSION-STOCK')) or (sell[8] is not None and bool(fee_regex.match(sell[8]))):
             tag = 'fee'
-        elif sell[7] is not None and sell[7].endswith('PIT-SELL_STOCK'):
+        elif (sell[7] is not None and sell[7].endswith('PIT-SELL_STOCK')) or (sell[8] is not None and bool(tax_regex.match(sell[8]))):
             tag = 'tax'
         else:
             trans = 'SELL'
