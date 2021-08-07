@@ -354,6 +354,90 @@ def ecc_aes_decrypt(cipher_block, priv_key):
     return aes_256_gcm_decrypt(cipher, shared_secret)
 
 
+def analyze_basic_insight(db_file):
+    if not os.path.exists(db_file):
+        raise RuntimeError('Please provide correct path to db file')
+
+    try:
+        db_conn = sqlite3.connect(db_file)
+        cur = db_conn.cursor()
+        print('Database is opened!')
+
+        out = cur.execute('SELECT SUM(increase) FROM stocks WHERE stocks.tag = "deposit";')
+        deposit = out.fetchall()[0][0]
+
+        out = cur.execute('SELECT SUM(decrease) FROM stocks WHERE stocks.tag = "withdraw";')
+        withdraw = out.fetchall()[0][0]
+
+        out = cur.execute('SELECT SUM(decrease) FROM stocks WHERE stocks.tag LIKE "tax%";')
+        tax = out.fetchall()[0][0]
+
+        out = cur.execute('SELECT SUM(decrease) FROM stocks WHERE stocks.tag LIKE "fee%";')
+        fee = out.fetchall()[0][0]
+
+        out = cur.execute('SELECT SUM(increase) FROM stocks WHERE stocks.tag = "interest";')
+        interest = out.fetchall()[0][0]
+
+        out = cur.execute('SELECT SUM(increase) FROM stocks WHERE stocks.tag = "dividend";')
+        dividend = out.fetchall()[0][0]
+
+        out = cur.execute(
+            'SELECT stocks.symbol, count(*) AS n FROM stocks WHERE stocks.symbol IS NOT NULL GROUP BY stocks.symbol ORDER BY n DESC;')
+        symbols = out.fetchall()
+
+        cur.close()
+
+        figures = (deposit, withdraw, tax, fee, interest, dividend)
+        print_basic_figures(figures, symbols)
+
+    except sqlite3.Error as error:
+        print('Failed to read data from table', error)
+    finally:
+        if db_conn:
+            db_conn.commit()
+            db_conn.close()
+            print('Database is closed!')
+
+    print('Fields type correction completed!\n')
+
+
+def print_basic_figures(figures, symbols):
+    (deposit, withdraw, tax, fee, interest, dividend) = figures
+    print('=====================================')
+    print('Total ammount of')
+    print('.... ++ top up    :', "{:>12,.0f} VND".format(deposit))
+    print('.... ++ interest  :', "{:>12,.0f} VND".format(interest))
+    print('.... ++ dividend  :', "{:>12,.0f} VND".format(dividend))
+    print('.... -- withdraw  :', "{:>12,.0f} VND".format(withdraw))
+    print('.... -- tax       :', "{:>12,.0f} VND".format(tax))
+    print('.... -- fee       :', "{:>12,.0f} VND".format(fee))
+    print('        balance   :', "{:>12,.0f} VND".format(deposit + interest + dividend - withdraw - tax - fee))
+    print('---------------------------')
+    print('Total net profit  : TODO')
+    print('---------------------------')
+    print('Total', len(symbols), 'stocks:')
+    print('| transaction | symbols')
+
+    previous_count = None
+    sym_list = []
+    for i in symbols:
+        if previous_count == None:
+            sym_list = [i[0]]
+            previous_count = i[1]
+        else:
+            if previous_count == i[1]:
+                sym_list.append(i[0])
+            else:
+                msg = ""
+                for sym in sym_list:
+                    msg += sym + ' '
+                print("| {:>11} | {}".format(previous_count, msg))
+                sym_list = [i[0]]
+                previous_count = i[1]
+
+    print('=====================================')
+
+
 def main():
     __version__ = '1.0'
 
@@ -366,6 +450,8 @@ def main():
     parser.add_argument('-enc', '--encrypt_database', action='store_true', help='encrypt plaintext database file')
     parser.add_argument('-dec', '--decrypt_database', action='store_true', help='decrypt cipher database file')
     parser.add_argument('-k', '--key', help='public key or private key in PEM or DER format')
+    parser.add_argument('-bi', '--basic_insight', action='store_true',
+                        help='Provide several statistical figures of the stock database')
 
     args = parser.parse_args()
 
@@ -380,6 +466,9 @@ def main():
 
     elif args.decrypt_database and args.database_file and args.key:
         decrypt_db(args.database_file, args.key)
+
+    elif args.basic_insight and args.database_file:
+        analyze_basic_insight(args.database_file)
 
     else:
         parser.print_help()
