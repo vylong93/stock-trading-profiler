@@ -174,7 +174,11 @@ def encrypt_db(db_file, pub_key):
             out_file.write(cipher_block)
 
     if checksum.decode("utf-8") == shasum.hexdigest():
-        print('Encrypted database located at:', output_path)
+        db_revision = checksum.decode("utf-8")[:12]
+        print('Database revision:', db_revision)
+        verified_output_path = output_path.replace("ldang", db_revision)
+        os.rename(output_path, verified_output_path)
+        print('Encrypted database located at:', verified_output_path)
     else:
         print('Failed to encrypt database! Checksum is not matched', checksum.decode("utf-8"), shasum.hexdigest())
 
